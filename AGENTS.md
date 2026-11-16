@@ -124,6 +124,7 @@ Ganchos de teste por variável de ambiente (só para depuração):
 - `requestSingleInstanceLock`: com outra instância aberta, um segundo `electron .` sai em silêncio.
 - Builds: o `.dmg` só pode ser gerado no macOS. O AppImage pode ser gerado no WSL Ubuntu, com Node portátil em `/tmp`.
 - O WSL tem Ubuntu sem Node instalado: para rodar os testes de Linux, baixe o Node portátil em `/tmp`.
+- Disparar o workflow via `curl -d` no Git Bash com acentos nas `notas` deu HTTP 400 (codificação do texto). Mande sem acentos, ou monte o JSON com Node (`fetch`), que envia UTF-8 corretamente.
 - `safeStorage.*String` sincronos geram aviso de "deprecated" no Electron 45, mas funcionam. Migrar para as versões async é uma melhoria futura.
 
 ## Testado / não testado
