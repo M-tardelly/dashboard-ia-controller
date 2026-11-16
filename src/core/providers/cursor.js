@@ -125,21 +125,43 @@ module.exports = {
     if (!a || !a.accessToken) return { error: 'Credenciais inválidas' };
     const claims = U.decodeJwt(a.accessToken) || {};
     if (claims.exp && claims.exp * 1000 < Date.now()) return { error: 'Login expirado — use "Entrar novamente".', expired: true };
-    const headers = { Cookie: sessionCookie(a.accessToken), Origin: 'https://cursor.com' };
-    const r = await U.fetchJson('https://cursor.com/api/usage-summary', { headers });
-    if (r.status === 401 || r.status === 403) return { error: 'Login expirado — use "Entrar novamente".', expired: true };
-    if (!r.ok || !r.json) return { error: `Falha ao consultar uso (${r.status})` };
-    const s = r.json;
+    const headers = { Cookie: sessionCookie(a.accessToken), Origin: 'https://cursor.com', 'Content-Type': 'application/json' };
+    // 1) mesmo endpoint do painel do cursor.com — reflete o ciclo real do plano
+    //    (alguns planos, ex. os ligados ao Grok, têm ciclo semanal e o usage-summary fica zerado)
+    const [cp, r] = await Promise.all([
+      U.fetchJson('https://cursor.com/api/dashboard/get-current-period-usage', { method: 'POST', headers, body: '{}' }),
+      U.fetchJson('https://cursor.com/api/usage-summary', { headers }),
+    ]);
+    if ([cp.status, r.status].some((s) => s === 401 || s === 403)) return { error: 'Login expirado — use "Entrar novamente".', expired: true };
+    const s = (r.ok && r.json) || {};
     const plan = (s.individualUsage && s.individualUsage.plan) || {};
     const od = (s.individualUsage && s.individualUsage.onDemand) || {};
-    const end = s.billingCycleEnd || null;
     const windows = [];
-    if (typeof plan.totalPercentUsed === 'number') windows.push({ key: 'total', label: 'Uso incluso no plano (mês)', percent: plan.totalPercentUsed, resetsAt: end });
-    if (typeof plan.autoPercentUsed === 'number') windows.push({ key: 'auto', label: 'Modelo Auto', percent: plan.autoPercentUsed, resetsAt: end });
-    if (typeof plan.apiPercentUsed === 'number') windows.push({ key: 'api', label: 'Modelos escolhidos (API)', percent: plan.apiPercentUsed, resetsAt: end });
     const notes = [];
-    if (typeof plan.used === 'number' && typeof plan.limit === 'number') notes.push(`Incluso: ${money(plan.used)} de ${money(plan.limit)}`);
-    if (od.enabled) notes.push(`Sob demanda: ${money(od.used)}${od.limit ? ` de ${money(od.limit)}` : ''}`);
+
+    const p = cp.ok && cp.json && cp.json.planUsage;
+    if (p && typeof p.totalPercentUsed === 'number') {
+      const start = Number(cp.json.billingCycleStart); const endMs = Number(cp.json.billingCycleEnd);
+      const end = endMs ? new Date(endMs).toISOString() : null;
+      const days = start && endMs ? Math.round((endMs - start) / 864e5) : null;
+      const period = days == null ? 'ciclo' : days <= 8 ? 'semana' : days <= 31 ? 'mês' : `${days} dias`;
+      windows.push({ key: 'total', label: `Uso incluso no plano (${period})`, percent: p.totalPercentUsed, resetsAt: end });
+      if (typeof p.autoPercentUsed === 'number' && Math.abs(p.autoPercentUsed - p.totalPercentUsed) > 0.05) windows.push({ key: 'auto', label: 'Modelo Auto', percent: p.autoPercentUsed, resetsAt: end });
+      if (typeof p.apiPercentUsed === 'number') windows.push({ key: 'api', label: 'Modelos escolhidos (API)', percent: p.apiPercentUsed, resetsAt: end });
+      if (p.remainingBonus) notes.push('Bônus de uso gratuito disponível');
+      const sl = cp.json.spendLimitUsage || {};
+      if (typeof sl.individualUsed === 'number' && sl.individualUsed > 0) notes.push(`Uso extra (sob demanda): ${money(sl.individualUsed)}${sl.individualLimit ? ` de ${money(sl.individualLimit)}` : ''}`);
+    } else if (r.ok && r.json) {
+      // 2) reserva: resumo antigo (mensal)
+      const end = s.billingCycleEnd || null;
+      if (typeof plan.totalPercentUsed === 'number') windows.push({ key: 'total', label: 'Uso incluso no plano (mês)', percent: plan.totalPercentUsed, resetsAt: end });
+      if (typeof plan.autoPercentUsed === 'number') windows.push({ key: 'auto', label: 'Modelo Auto', percent: plan.autoPercentUsed, resetsAt: end });
+      if (typeof plan.apiPercentUsed === 'number') windows.push({ key: 'api', label: 'Modelos escolhidos (API)', percent: plan.apiPercentUsed, resetsAt: end });
+      if (typeof plan.used === 'number' && typeof plan.limit === 'number') notes.push(`Incluso: ${money(plan.used)} de ${money(plan.limit)}`);
+    } else {
+      return { error: `Falha ao consultar uso (${cp.status || r.status})` };
+    }
+    if (od.enabled && od.used) notes.push(`Sob demanda: ${money(od.used)}${od.limit ? ` de ${money(od.limit)}` : ''}`);
     if (s.isUnlimited) notes.push('Plano ilimitado');
     return { windows, notes, plan: s.membershipType || null };
   },
