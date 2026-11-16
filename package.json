@@ -1,7 +1,7 @@
 {
   "name": "ai-account-switcher",
   "productName": "AI Account Switcher",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Gerencie várias contas do Claude Code, Codex e Cursor CLI, troque com um clique e acompanhe o consumo.",
   "main": "src/main.js",
   "author": {
