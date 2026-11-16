@@ -18,7 +18,7 @@ App desktop (Electron, **Windows / macOS / Linux**) que:
 
 ## Como o dono quer que o agente trabalhe
 - Faça você mesmo o **commit, o push e o lançamento** das versões. Não deixe passos manuais para ele.
-- Antes de fazer o commit: rode `node tests/switch-test.js` e atualize este AGENTS.md (e o README, se mudar algo visível para o usuário).
+- Antes de fazer o commit: rode `node tests/switch-test.js` e `node tests/updater-test.js` e atualize este AGENTS.md (e o README, se mudar algo visível para o usuário).
 - Mensagens de commit em português. Termine com o trailer `Co-Authored-By` indicado pelo ambiente.
 - Nunca faça commit de dados de conta, tokens, e-mails pessoais ou de `dist/`/`node_modules/`.
 
@@ -94,7 +94,7 @@ A identidade de cada conta (`key`):
 - Windows e Linux AppImage: o `electron-updater` baixa em segundo plano e instala ao reiniciar ou ao sair do app.
 - macOS e `.deb`: modo "avisar". O app consulta `api.github.com/.../releases/latest` e abre o `.dmg` ou `.deb` certo. Atualização silenciosa no Mac exige assinatura Apple, que não temos.
 - **Lançar versão**: workflow `Lançar versão` (workflow_dispatch, entrada `versao` maior que a do package.json). Etapas:
-  1. Testes (Ubuntu e Windows).
+  1. Testes (Ubuntu e Windows): `switch-test` e `updater-test`.
   2. `npm version`, commit "Versão X", tag `vX` e release em rascunho.
   3. `electron-builder --win/--mac/--linux --publish always`.
   4. `gh release edit --draft=false --latest`.
@@ -109,6 +109,7 @@ A identidade de cada conta (`key`):
 npm install
 npm start                       # roda em modo dev (o atualizador fica desligado)
 node tests/switch-test.js       # teste de troca (Windows/Linux; no macOS é pulado)
+node tests/updater-test.js      # o app instalado precisa achar o repositório de atualização
 npm run dist:win | dist:mac | dist:linux
 npm run icon
 ```

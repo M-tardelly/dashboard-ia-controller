@@ -11,7 +11,20 @@ const pkg = require('../package.json');
 
 const CHECK_EVERY = 4 * 3600e3;
 
+/**
+ * Repositório de onde vêm as atualizações.
+ * No app instalado o electron-builder REMOVE a seção "build" do package.json,
+ * então lemos o resources/app-update.yml (gerado pelo build a partir do "publish").
+ * Em modo dev (npm start) usamos o package.json.
+ */
 function repoInfo() {
+  try {
+    const path = require('path');
+    const fs = require('fs');
+    const yml = fs.readFileSync(path.join(process.resourcesPath || '', 'app-update.yml'), 'utf8');
+    const get = (k) => { const m = new RegExp(`^${k}:\\s*['"]?([^'"\\r\\n]+)`, 'm').exec(yml); return m ? m[1].trim() : null; };
+    if (get('provider') === 'github' && get('owner') && get('repo')) return { owner: get('owner'), repo: get('repo') };
+  } catch { /* sem app-update.yml: modo dev */ }
   const pub = [].concat((pkg.build && pkg.build.publish) || []).find((p) => p.provider === 'github') || {};
   return { owner: pub.owner, repo: pub.repo };
 }
