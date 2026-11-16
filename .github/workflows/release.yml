@@ -1,0 +1,103 @@
+# Lança uma versão nova do AI Account Switcher — tudo pelo site do GitHub:
+#   Actions → "Lançar versão" → Run workflow → digite o número (ex.: 1.2.0) → Run.
+# O workflow testa, sobe o número da versão, gera os instaladores de Windows, macOS
+# e Linux e publica o release. Os apps instalados se atualizam a partir dele.
+name: Lançar versão
+
+on:
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: 'Número da nova versão (ex.: 1.2.0)'
+        required: true
+      notas:
+        description: 'O que mudou (opcional — se vazio, o GitHub gera a lista de mudanças)'
+        required: false
+
+permissions:
+  contents: write
+
+concurrency: lancar-versao
+
+jobs:
+  testes:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: node tests/switch-test.js
+
+  preparar:
+    needs: testes
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.versao.outputs.tag }}
+    env:
+      VERSAO: ${{ inputs.versao }}
+      NOTAS: ${{ inputs.notas }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Validar número da versão
+        id: versao
+        run: |
+          V="${VERSAO#v}"
+          if ! [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Use o formato 1.2.3 (recebi: $VERSAO)"; exit 1
+          fi
+          ATUAL=$(node -p "require('./package.json').version")
+          if ! node -e "const [a,b]=process.argv.slice(1).map(v=>v.split('.').map(Number));for(let i=0;i<3;i++){if(a[i]>b[i])process.exit(0);if(a[i]<b[i])process.exit(1)}process.exit(1)" "$V" "$ATUAL"; then
+            echo "::error::A versão $V precisa ser maior que a atual ($ATUAL)"; exit 1
+          fi
+          echo "V=$V" >> "$GITHUB_ENV"
+          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+      - name: Gravar versão, criar tag e release (rascunho)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm version "$V" --no-git-tag-version
+          git commit -am "Versão $V"
+          git tag "v$V"
+          git push origin HEAD "v$V"
+          if [ -n "$NOTAS" ]; then
+            gh release create "v$V" --draft --title "v$V" --notes "$NOTAS"
+          else
+            gh release create "v$V" --draft --title "v$V" --generate-notes
+          fi
+
+  instaladores:
+    needs: preparar
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: windows-latest, alvo: --win }
+          - { os: macos-latest, alvo: --mac }
+          - { os: ubuntu-latest, alvo: --linux }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ needs.preparar.outputs.tag }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx electron-builder ${{ matrix.alvo }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false' # sem certificado de assinatura
+
+  publicar:
+    needs: [preparar, instaladores]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Publicar o release (os apps passam a ver a atualização)
+        run: gh release edit "${{ needs.preparar.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest

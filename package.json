@@ -1,0 +1,94 @@
+{
+  "name": "ai-account-switcher",
+  "productName": "AI Account Switcher",
+  "version": "1.1.0",
+  "description": "Gerencie várias contas do Claude Code, Codex e Cursor CLI, troque com um clique e acompanhe o consumo.",
+  "main": "src/main.js",
+  "author": {
+    "name": "AI Account Switcher",
+    "email": "noreply@localhost"
+  },
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:linux": "electron-builder --linux AppImage deb",
+    "icon": "node build/make-icon.js"
+  },
+  "devDependencies": {
+    "electron": "45.3.3",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "local.ai-account-switcher",
+    "productName": "AI Account Switcher",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AI Account Switcher"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools"
+    },
+    "dmg": {
+      "title": "AI Account Switcher"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icon.png",
+      "category": "Development",
+      "maintainer": "AI Account Switcher <noreply@localhost>",
+      "synopsis": "Troque contas do Claude Code, Codex e Cursor CLI"
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "M-tardelly",
+        "repo": "dashboard-ia-controller",
+        "releaseType": "draft"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "desktopName": "ai-account-switcher.desktop"
+}
